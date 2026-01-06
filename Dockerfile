@@ -1,5 +1,5 @@
 # Base sólida de Node Alpine
-FROM node:20-alpine
+FROM node:18-alpine
 
 # ---------------------------------------------------------------------------
 # 1. INSTALACIÓN MASIVA DE DEPENDENCIAS
