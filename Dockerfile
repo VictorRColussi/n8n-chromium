@@ -1,9 +1,20 @@
-# n8n "full" sobre Node Alpine + Chromium + ffmpeg
-# Base garantizada con apk disponible
+# n8n "Full Power" sobre Node Alpine
 FROM node:20-alpine
 
-# 1) Dependencias del sistema (Chromium + fonts + libs típicas para headless)
+# 1) Instalar TODAS las dependencias del sistema
+# - git: CRUCIAL para instalar community nodes (soluciona tu error anterior)
+# - chromium & deps: Para Puppeteer
+# - ffmpeg: Para audio/video
+# - graphicsmagick: Para el nodo de manipulación de imágenes de n8n
+# - tzdata: Para configurar la zona horaria correctamente
+# - curl, bash, jq: Herramientas útiles para scripts en n8n
 RUN apk add --no-cache \
+    git \
+    bash \
+    curl \
+    jq \
+    tzdata \
+    graphicsmagick \
     chromium \
     nss \
     freetype \
@@ -24,32 +35,36 @@ RUN apk add --no-cache \
     udev \
     ffmpeg
 
-# 2) Variables para Puppeteer/Chromium (Alpine suele usar /usr/bin/chromium)
+# 2) Variables de entorno para Puppeteer
+# Le decimos que NO descargue su propio Chromium, que use el de Alpine
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROMIUM_PATH=/usr/bin/chromium
 
-# 3) Variables mínimas de n8n para correr bien en contenedor
+# 3) Variables de entorno de n8n
 ENV NODE_ENV=production
 ENV N8N_HOST=0.0.0.0
 ENV N8N_PORT=5678
 ENV N8N_PROTOCOL=http
-ENV N8N_USER_FOLDER=/home/node/.n8n
+# IMPORTANTE: Definir la Timezone por defecto (cambiala si no sos de Argentina)
+ENV TZ=America/Argentina/Buenos_Aires
 
-# 4) Instalar n8n (mejor fijar versión para evitar sorpresas)
-# Si querés, cambiá 1.0.0 por la versión que uses (recomendado)
+# 4) Instalar n8n globalmente
+# Te sugiero fuertemente instalar una versión fija para estabilidad, pero dejo latest si preferís
 RUN npm install -g n8n@latest
 
-# 5) Preparar persistencia (esto es CLAVE para que tus workflows queden en volumen)
-RUN mkdir -p /home/node/.n8n /data && \
-    chown -R node:node /home/node/.n8n /data
+# 5) Crear directorio de trabajo y asignar permisos
+# Creamos la carpeta .n8n explícitamente y asignamos dueño al usuario 'node'
+WORKDIR /home/node
+RUN mkdir -p /home/node/.n8n && \
+    chown -R node:node /home/node/.n8n
 
-# 6) Usuario no-root
+# 6) Cambiar al usuario sin privilegios
 USER node
 
-# 7) Exponer puerto
+# 7) Exponer el puerto
 EXPOSE 5678
 
-# 8) Iniciar n8n
+# 8) Comando de inicio
 CMD ["n8n"]
