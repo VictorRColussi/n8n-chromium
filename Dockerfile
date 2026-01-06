@@ -1,9 +1,9 @@
-# Base sólida de Node Alpine
 FROM node:20-alpine
 
 # ---------------------------------------------------------------------------
-# 1. INSTALACIÓN MASIVA DE DEPENDENCIAS
+# 1. INSTALACIÓN DE DEPENDENCIAS (Limpieza de conflictos)
 # ---------------------------------------------------------------------------
+# Instalamos lo necesario para Chromium, compilar nativos (build-base) y manejo de imágenes
 RUN apk add --no-cache \
     git \
     bash \
@@ -11,153 +11,88 @@ RUN apk add --no-cache \
     jq \
     tzdata \
     graphicsmagick \
+    ffmpeg \
     chromium \
-    chromium-chromedriver \
     nss \
     freetype \
-    freetype-dev \
     harfbuzz \
     ca-certificates \
     ttf-freefont \
-    font-noto \
     font-noto-emoji \
-    wqy-zenhei \
     python3 \
-    py3-pip \
     make \
     g++ \
-    gcc \
     build-base \
     cairo \
-    cairo-dev \
     pango \
-    pango-dev \
     libjpeg-turbo \
-    libjpeg-turbo-dev \
     libpng \
-    libpng-dev \
-    giflib-dev \
-    pixman-dev \
-    pangomm-dev \
-    libjpeg \
     udev \
-    ttf-liberation \
-    libx11 \
-    libxcomposite \
-    libxcursor \
-    libxdamage \
-    libxi \
-    libxtst \
-    cups-libs \
-    libxss \
-    libxrandr \
-    alsa-lib \
-    at-spi2-atk \
-    at-spi2-core \
-    atk \
-    dbus-libs \
     sudo \
-    ffmpeg
+    shadow
 
 # ---------------------------------------------------------------------------
-# 2. VARIABLES DE ENTORNO UNIVERSALES
+# 2. VARIABLES DE ENTORNO
 # ---------------------------------------------------------------------------
 ENV NODE_FUNCTION_ALLOW_EXTERNAL=*
 ENV NODE_PATH=/usr/local/lib/node_modules
+ENV TZ=America/Argentina/Buenos_Aires
 
-# Configuración de Puppeteer
+# Variables Puppeteer / Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-ENV CHROME_BIN=/usr/bin/chromium-browser
-ENV CHROMIUM_PATH=/usr/bin/chromium-browser
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV CHROME_BIN=/usr/bin/chromium
+ENV CHROMIUM_PATH=/usr/bin/chromium
 
-# Configuración básica de n8n
+# Variables n8n
 ENV NODE_ENV=production
 ENV N8N_HOST=0.0.0.0
 ENV N8N_PORT=5678
 ENV N8N_PROTOCOL=http
-ENV TZ=America/Argentina/Buenos_Aires
-
-# Variables para Chromium
-ENV CHROME_DEVEL_SANDBOX=/usr/lib/chromium/chrome-sandbox
-ENV PUPPETEER_DISABLE_DEV_SHM_USAGE=true
 
 # ---------------------------------------------------------------------------
-# 3. INSTALACIÓN DE N8N Y LIBRERÍAS
+# 3. INSTALACIÓN DE N8N Y LIBRERÍAS GLOBALES
 # ---------------------------------------------------------------------------
-RUN npm install -g n8n@latest puppeteer
-
-# Instalar librerías adicionales útiles
-RUN npm install -g \
-    axios \
-    cheerio \
-    moment \
-    lodash \
-    date-fns \
-    sharp \
-    jimp
+# Usamos puppeteer-core para no bajar otro chrome.
+# Instalamos n8n y las librerías extra que pediste.
+RUN npm install -g n8n@latest puppeteer-core axios cheerio moment lodash date-fns jimp sharp
 
 # ---------------------------------------------------------------------------
-# 4. CONFIGURACIÓN UNIVERSAL DE PERMISOS
+# 4. PREPARACIÓN DE DIRECTORIOS Y PERMISOS
 # ---------------------------------------------------------------------------
 WORKDIR /home/node
 
-# Crear directorios para AMBOS usuarios (root y node)
-RUN mkdir -p /home/node/.n8n /root/.n8n /data && \
+# Preparamos carpetas y damos permisos amplios para evitar errores de EACCES
+RUN mkdir -p /home/node/.n8n /data && \
     chown -R node:node /home/node && \
-    chmod -R 777 /home/node/.n8n /root/.n8n /data
+    chmod -R 777 /home/node /data
 
-# Dar permisos al chrome-sandbox para que funcione con cualquier usuario
-RUN chmod 4755 /usr/lib/chromium/chrome-sandbox
-
-# Dar privilegios sudo al usuario node (por si acaso)
+# Configuración de sudo para el usuario node (sin contraseña)
 RUN echo "node ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # ---------------------------------------------------------------------------
-# 5. SCRIPT DE INICIO INTELIGENTE
+# 5. SCRIPT DE ARRANQUE (Sin sintaxis heredoc para compatibilidad)
 # ---------------------------------------------------------------------------
-# Este script detecta automáticamente si sos root o no
-COPY <<'EOF' /usr/local/bin/start-n8n.sh
-#!/bin/bash
-set -e
-
-# Detectar el usuario actual
-CURRENT_USER=$(whoami)
-
-echo "=========================================="
-echo "Iniciando n8n como usuario: $CURRENT_USER"
-echo "=========================================="
-
-# Configurar el directorio de n8n según el usuario
-if [ "$CURRENT_USER" = "root" ]; then
-    export N8N_USER_FOLDER=/root/.n8n
-    echo "Modo: ROOT - Todos los permisos disponibles"
-else
-    export N8N_USER_FOLDER=/home/node/.n8n
-    echo "Modo: NON-ROOT - Usuario estándar"
-fi
-
-# Asegurar que el directorio existe y tiene permisos
-mkdir -p $N8N_USER_FOLDER
-chmod -R 777 $N8N_USER_FOLDER 2>/dev/null || true
-
-echo "Directorio de datos: $N8N_USER_FOLDER"
-echo "=========================================="
-
-# Iniciar n8n
-exec n8n
-EOF
-
-# Hacer el script ejecutable
-RUN chmod +x /usr/local/bin/start-n8n.sh
+# Creamos el script start.sh de forma tradicional con echo
+RUN echo '#!/bin/bash' > /usr/local/bin/start-n8n.sh && \
+    echo 'set -e' >> /usr/local/bin/start-n8n.sh && \
+    echo 'CURRENT_USER=$(whoami)' >> /usr/local/bin/start-n8n.sh && \
+    echo 'echo "Iniciando n8n como: $CURRENT_USER"' >> /usr/local/bin/start-n8n.sh && \
+    echo 'if [ "$CURRENT_USER" = "root" ]; then' >> /usr/local/bin/start-n8n.sh && \
+    echo '  export N8N_USER_FOLDER=/home/node/.n8n' >> /usr/local/bin/start-n8n.sh && \
+    echo '  # Si somos root, arreglamos permisos al vuelo por si se montó un volumen externo' >> /usr/local/bin/start-n8n.sh && \
+    echo '  chown -R node:node /home/node/.n8n /data' >> /usr/local/bin/start-n8n.sh && \
+    echo 'else' >> /usr/local/bin/start-n8n.sh && \
+    echo '  export N8N_USER_FOLDER=/home/node/.n8n' >> /usr/local/bin/start-n8n.sh && \
+    echo 'fi' >> /usr/local/bin/start-n8n.sh && \
+    echo 'exec n8n' >> /usr/local/bin/start-n8n.sh && \
+    chmod +x /usr/local/bin/start-n8n.sh
 
 # ---------------------------------------------------------------------------
-# 6. EXPONEMOS EL PUERTO
+# 6. EJECUCIÓN
 # ---------------------------------------------------------------------------
 EXPOSE 5678
 
-# ---------------------------------------------------------------------------
-# 7. ARRANQUE UNIVERSAL (funciona como root o como node)
-# ---------------------------------------------------------------------------
-# NO especificamos USER, dejamos que Docker decida en runtime
+# Arrancamos como usuario node por defecto, pero permite ser sobreescrito
+USER node
 CMD ["/usr/local/bin/start-n8n.sh"]
