@@ -1,13 +1,15 @@
-# n8n "Full Power" sobre Node Alpine
+# Base sólida de Node Alpine
 FROM node:20-alpine
 
-# 1) Instalar TODAS las dependencias del sistema
-# - git: CRUCIAL para instalar community nodes (soluciona tu error anterior)
-# - chromium & deps: Para Puppeteer
-# - ffmpeg: Para audio/video
-# - graphicsmagick: Para el nodo de manipulación de imágenes de n8n
-# - tzdata: Para configurar la zona horaria correctamente
-# - curl, bash, jq: Herramientas útiles para scripts en n8n
+# ---------------------------------------------------------------------------
+# 1. INSTALACIÓN MASIVA DE DEPENDENCIAS
+# ---------------------------------------------------------------------------
+# - git: para instalar nodos de la comunidad
+# - chromium & deps: para Puppeteer (todos los drivers gráficos necesarios)
+# - ffmpeg: para audio/video
+# - graphicsmagick: para manipulación de imágenes
+# - build tools: python, make, g++ (para compilar cualquier cosa que falte)
+# - utils: bash, curl, jq, tzdata (para scripts y zona horaria)
 RUN apk add --no-cache \
     git \
     bash \
@@ -35,36 +37,48 @@ RUN apk add --no-cache \
     udev \
     ffmpeg
 
-# 2) Variables de entorno para Puppeteer
-# Le decimos que NO descargue su propio Chromium, que use el de Alpine
+# ---------------------------------------------------------------------------
+# 2. VARIABLES DE ENTORNO "HARDCODED" (PARA LIBERAR TODO)
+# ---------------------------------------------------------------------------
+# ESTO ES LO QUE TE FALTABA: Permitir importar CUALQUIER librería en el nodo Code
+ENV NODE_FUNCTION_ALLOW_EXTERNAL=*
+
+# Decirle a Node que busque las librerías en la carpeta global (donde instalamos puppeteer-core)
+ENV NODE_PATH=/usr/local/lib/node_modules
+
+# Configuración de Puppeteer para que use el Chromium de Alpine
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROMIUM_PATH=/usr/bin/chromium
 
-# 3) Variables de entorno de n8n
+# Configuración básica de n8n
 ENV NODE_ENV=production
 ENV N8N_HOST=0.0.0.0
 ENV N8N_PORT=5678
 ENV N8N_PROTOCOL=http
-# IMPORTANTE: Definir la Timezone por defecto (cambiala si no sos de Argentina)
+# Zona horaria (ajustala si no es Argentina)
 ENV TZ=America/Argentina/Buenos_Aires
 
-# 4) Instalar n8n globalmente
-# Te sugiero fuertemente instalar una versión fija para estabilidad, pero dejo latest si preferís
-RUN npm install -g n8n@latest
+# ---------------------------------------------------------------------------
+# 3. INSTALACIÓN DE N8N Y LIBRERÍAS
+# ---------------------------------------------------------------------------
+# Instalamos n8n y puppeteer-core GLOBALMENTE
+RUN npm install -g n8n@latest puppeteer-core
 
-# 5) Crear directorio de trabajo y asignar permisos
-# Creamos la carpeta .n8n explícitamente y asignamos dueño al usuario 'node'
+# ---------------------------------------------------------------------------
+# 4. PREPARACIÓN DE DIRECTORIOS
+# ---------------------------------------------------------------------------
 WORKDIR /home/node
-RUN mkdir -p /home/node/.n8n && \
-    chown -R node:node /home/node/.n8n
+# Creamos las carpetas y asignamos permisos al usuario node
+RUN mkdir -p /home/node/.n8n /data && \
+    chown -R node:node /home/node/.n8n /data
 
-# 6) Cambiar al usuario sin privilegios
+# ---------------------------------------------------------------------------
+# 5. ARRANQUE
+# ---------------------------------------------------------------------------
+# Cambiamos a usuario node (root no es necesario para correr, solo para instalar)
 USER node
 
-# 7) Exponer el puerto
 EXPOSE 5678
-
-# 8) Comando de inicio
 CMD ["n8n"]
