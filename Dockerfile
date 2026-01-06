@@ -64,7 +64,7 @@ ENV TZ=America/Argentina/Buenos_Aires
 # 3. INSTALACIÓN DE N8N Y LIBRERÍAS
 # ---------------------------------------------------------------------------
 # Instalamos n8n y puppeteer-core GLOBALMENTE
-RUN npm install -g n8n@latest puppeteer-core
+RUN npm install -g n8n@2.2.4 puppeteer-core@19.11.1
 
 # ---------------------------------------------------------------------------
 # 4. PREPARACIÓN DE DIRECTORIOS
