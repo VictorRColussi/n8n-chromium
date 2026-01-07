@@ -53,7 +53,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ---------------------------------------------------------------------------
 # 2. VARIABLES DE ENTORNO
 # ---------------------------------------------------------------------------
+# Permite librerías externas (npm) como puppeteer-core
 ENV NODE_FUNCTION_ALLOW_EXTERNAL=*
+
+# ---> ESTA ES LA QUE FALTABA <---
+# Permite librerías internas de Node (fs, child_process, path)
+ENV NODE_FUNCTION_ALLOW_BUILTIN=*
+
 ENV NODE_PATH=/usr/local/lib/node_modules
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
