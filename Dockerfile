@@ -4,10 +4,6 @@ FROM node:20-bullseye
 # ---------------------------------------------------------------------------
 # 1. INSTALACIÓN MASIVA DE DEPENDENCIAS
 # ---------------------------------------------------------------------------
-# - chromium: navegador
-# - fonts: para PDFs bien renderizados
-# - librerías X/GTK/NSS: necesarias para headless chrome
-# - dumb-init: init correcto para contenedores (señales, zombies)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     bash \
@@ -33,7 +29,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     udev \
     ffmpeg \
     dumb-init \
-    # deps típicas de chromium headless
     libnss3 \
     libx11-6 \
     libx11-xcb1 \
@@ -51,35 +46,47 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
-# 2. VARIABLES DE ENTORNO
+# 2. VARIABLES DE ENTORNO (SISTEMA Y ESTABILIDAD)
 # ---------------------------------------------------------------------------
-# Permite librerías externas (npm) como puppeteer-core
+# Permisos para funciones internas y externas
 ENV NODE_FUNCTION_ALLOW_EXTERNAL=*
-
-# ---> ESTA ES LA QUE FALTABA <---
-# Permite librerías internas de Node (fs, child_process, path)
 ENV NODE_FUNCTION_ALLOW_BUILTIN=*
-
 ENV NODE_PATH=/usr/local/lib/node_modules
 
+# Configuración de Chromium / Puppeteer
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-# Debian: normalmente chromium vive acá
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROMIUM_PATH=/usr/bin/chromium
 
+# Configuración base de n8n
 ENV NODE_ENV=production
 ENV N8N_HOST=0.0.0.0
 ENV N8N_PORT=5678
-ENV N8N_PROTOCOL=http
+# IMPORTANTE: Dentro del contenedor el protocolo es http. 
+# El https lo pone Coolify por fuera. No cambies esto a https aquí.
+ENV N8N_PROTOCOL=http 
+
+# Zona horaria
 ENV TZ=America/Argentina/Buenos_Aires
 
+# ---> SOLUCIÓN CRÍTICA PARA EL ERROR 404 Y REINICIOS <---
+# Esto evita que n8n borre los webhooks al reiniciarse o desplegarse
+ENV N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN=true
+
+# ---> LIMPIEZA AUTOMÁTICA (RECOMENDADO) <---
+# Esto evita que tu Coolify se llene de logs viejos y colapse
+ENV EXECUTIONS_DATA_PRUNE=true
+ENV EXECUTIONS_DATA_MAX_AGE=336
+ENV EXECUTIONS_DATA_PRUNE_MAX_COUNT=50000
+
 # ---------------------------------------------------------------------------
-# 3. INSTALACIÓN DE N8N Y LIBRERÍAS
+# 3. INSTALACIÓN DE N8N
 # ---------------------------------------------------------------------------
+# Instalamos n8n y puppeteer-core
 RUN npm install -g n8n@2.2.4 puppeteer-core@24.10.2
 
-# Compat: symlink /usr/bin/chromium-browser por si tu código lo usa
+# Symlink de compatibilidad
 RUN if [ ! -f /usr/bin/chromium-browser ] && [ -f /usr/bin/chromium ]; then ln -s /usr/bin/chromium /usr/bin/chromium-browser; fi
 
 # ---------------------------------------------------------------------------
